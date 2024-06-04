@@ -1,10 +1,10 @@
-from typing import List
+from typing import List, Optional
 
 import os
-import ohh.replace_rules as rules
+import ohh.modules as modules
 
 BUILD_DIRECTORY = 'build'
-TEMP_DIRECTORY = 'temp'
+TEMP_DIRECTORY = 'build/.temp'
 
 def set_build_dir(dirname: str):
     global BUILD_DIRECTORY
@@ -20,8 +20,31 @@ class AutoExtractSearchType:
 
 start_pos = int
 end_pos = int
-StandardSearchResult = List[tuple[int, int, str]]
-StandardPatterns = List[str]
+
+class SearchPattern:
+    pattern_str: str
+    def __init__(self, pattern_str: str):
+        self.pattern_str = pattern_str
+
+class ReplaceRule:
+    from_: str
+    to: str
+    def __init__(self, arg1: str, to: Optional[str] = None):
+        if type(arg1) == tuple:
+            print(arg1)
+            self.from_ = arg1[0]
+            self.to = arg1[1]
+            return
+        else:
+            self.from_ = arg1
+            self.to = to
+
+class SearchResult:
+    start_pos: Optional[str]
+    end_pos: Optional[str]
+    matched_pattern_str: str
+    def __repr__(self):
+        return str(self.__dict__)
 
 class Directory:
     '''
@@ -52,30 +75,30 @@ class Directory:
     def auto_extract_source(self, search_type = AutoExtractSearchType.NORMAL) -> dict[filename, List[tuple[str, possibility]]]:
         source = dict()
         for filepath in self.includingfiles:
-            if os.path.splitext(filepath)[1] in rules.auto_extract_source:
-                source[filepath] = rules.auto_extract_source[os.path.splitext(filepath)[1]](filepath, search_type)
+            if os.path.splitext(filepath)[1] in modules.auto_extract_source:
+                source[filepath] = modules.auto_extract_source[os.path.splitext(filepath)[1]](filepath, search_type)
         return source
-    def search(self, patterns: StandardPatterns):
+    def search(self, *patterns: List[str | SearchPattern] | str | SearchPattern):
+        patterns = _preprocessing_patterns(str, SearchPattern, patterns)
         ret = []
         for filepath in self.includingfiles:
-            if os.path.splitext(filepath)[1] in rules.search:
-                result = rules.search[os.path.splitext(filepath)[1]](filepath, patterns)
+            if os.path.splitext(filepath)[1] in modules.search:
+                result = modules.search[os.path.splitext(filepath)[1]](filepath, patterns)
                 if result == []:
                     pass
                 else:
                     ret.append((filepath, result))
+            else:
+                pass
         return ret
-    from_ = str | bytes
-    to = str | bytes
-    def replace(self, patterns: List[tuple[from_, to]]):
-        for filepath, result in self.search([e for e, _ in patterns]):
-            if os.path.splitext(filepath)[1] in rules.search:
-                will_replace_patterns = []
-                for search_ret_pattern in result:
-                    for pattern in patterns:
-                        if search_ret_pattern[2] == pattern[0]:
-                            will_replace_patterns.append((search_ret_pattern[0], search_ret_pattern[1], pattern[1]))
-                rules.replace[os.path.splitext(filepath)[1]](filepath, will_replace_patterns)
+    def replace(self, *patterns: List[tuple[str, str] | ReplaceRule] | tuple[str, str] | ReplaceRule):
+        _preprocessing_patterns(tuple, ReplaceRule, patterns)
+        for filepath in self.includingfiles:
+            if os.path.splitext(filepath)[1] in modules.replace:
+                modules.replace[os.path.splitext(filepath)[1]](filepath, patterns)
+            else:
+                pass
+        return self
     def copy_into(self, to_path: str):
         import shutil
         if not os.path.exists(to_path):
@@ -127,15 +150,12 @@ class File:
         return dir
     from_ = str
     to = str
-    def replace(self, patterns: List[tuple[from_, to]]):
-        standard_pattern = []
-        if (os.path.splitext(self.filepath)[1] in rules.replace) and (os.path.splitext(self.filepath)[1] in rules.search):
-            result = rules.search[os.path.splitext(self.filepath)[1]](self.filepath, [e for e, _ in patterns])
-            for start_pos, end_pos, str_ in result:
-                for from_, to in patterns:
-                    if str_ == from_:
-                        standard_pattern.append((start_pos, end_pos, to))
-            rules.replace[os.path.splitext(self.filepath)[1]](self.filepath, standard_pattern)
+    def replace(self, *patterns: List[tuple[str, str] | ReplaceRule] | tuple[str, str] | ReplaceRule):
+        _preprocessing_patterns(tuple, ReplaceRule, patterns)
+        if os.path.splitext(self.filepath)[1] in modules.replace:
+            modules.replace[os.path.splitext(self.filepath)[1]](self.filepath, patterns)
+        else:
+            raise Exception("The file do not have replace support")
         return self
     def copy_to(self, to_path: str):
         import shutil
@@ -144,10 +164,10 @@ class File:
         shutil.copy(self.filepath, to_path)
     possibility = int
     def auto_extract_source(self, search_type = AutoExtractSearchType.NORMAL) -> List[tuple[str, possibility]]:
-        source = dict()
-        if os.path.splitext(self.filepath)[1] in rules.auto_extract_source:
-            source[self.filepath] = rules.auto_extract_source[os.path.splitext(self.filepath)[1]](self.filepath, search_type)
-        return source
+        if os.path.splitext(self.filepath)[1] in modules.auto_extract_source:
+            return modules.auto_extract_source[os.path.splitext(self.filepath)[1]](self.filepath, search_type)
+        else:
+            return []
     def replace_with(self, filepath: str):
         import shutil
         os.remove(self.filepath)
@@ -160,6 +180,17 @@ class File:
             opentype = 'wb'
         with open(self.filepath, opentype) as file:
             file.write(context)
+    def search(self, *patterns: List[str | SearchPattern] | str | SearchPattern):
+        patterns = _preprocessing_patterns(str, SearchPattern, patterns)
+        ret = []
+        if os.path.splitext(self.filepath)[1] in modules.search:
+            result = modules.search[os.path.splitext(self.filepath)[1]](self.filepath, patterns)
+            if result == []:
+                return []
+            else:
+                return result
+        else:
+            raise Exception("The file do not have search support")
 
 def for_file(filepath) -> File:
     file = File()
@@ -178,3 +209,31 @@ def is_rule_defined(rules_dict_name, rule) -> bool:
         return True
     else:
         return False
+
+def _preprocessing_patterns(SimplyType, AdvancedType, *patterns):
+    '''
+        Example: replace 函数定义中的 _preprocessing_patterns(tuple, ReplaceRule, patterns)
+        则以下参数等价：
+        1. replace([ReplaceRule("1", "2")])
+        2. replace([("1", "2")])
+        3. replace(ReplaceRule(("1", "2")))
+        4. replace(("1", "2"))
+        5. replace("1", "2")
+        6. replace(ReplaceRule("1", "2"))
+        若想要 3. 和 6. 等价，则应该为 ReplaceRule 同时定义这两种形式的构造
+        除此之外，1.~ 5.的相互等价都是本函数提供的，只需为 ReplaceRule 手动定义参数形如 ReplaceRule(("1", "2")) 的构造
+    '''
+    if len(patterns) != 1 and type(patterns) != SimplyType:
+        return [(patterns)]
+    elif type(patterns[0]) == SimplyType:
+        return [AdvancedType(patterns[0])]
+    elif type(patterns[0]) == AdvancedType:
+        return [patterns[0]]
+    else:
+        ret_list = []
+        for pattern in patterns[0]:
+            if type(pattern) == SimplyType:
+                ret_list.append(AdvancedType(pattern))
+            else:
+                ret_list.append(pattern)
+        return ret_list

@@ -1,4 +1,4 @@
-from ohh.replace_rules.utils import *
-from ohh.replace_rules import *
+from ohh.modules.utils import *
+from ohh.modules import *
 from ohh.easy import *
 from ohh.cliutil import *

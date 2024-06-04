@@ -3,7 +3,7 @@ import os
 
 from ohh.easy import BUILD_DIRECTORY
 
-def replace_in_file(file_path: str, replacements: List[tuple[int, int, bytes | str]]):
+def replace_in_file(file_path: str, replacements: List[tuple[int, int, bytes | str]], dont_move = False):
     # 读取原始文件内容
     with open(file_path, 'rb') as file:
         content = file.read()
@@ -27,10 +27,17 @@ def replace_in_file(file_path: str, replacements: List[tuple[int, int, bytes | s
         content[start:end] = new_data
 
     # 确保目标目录存在
-    target_dir = os.path.join(BUILD_DIRECTORY, os.path.dirname(file_path))
+    if dont_move:
+        target_dir = os.path.dirname(file_path)
+    else:
+        target_dir = os.path.join(BUILD_DIRECTORY, os.path.dirname(file_path))
     if not os.path.exists(target_dir):
         os.makedirs(target_dir)
 
     # 写入新文件
-    with open(os.path.join(BUILD_DIRECTORY, file_path), 'wb') as targetfile:
+    if dont_move:
+        target_path = file_path
+    else:
+        target_path = os.path.join(BUILD_DIRECTORY, file_path)
+    with open(target_path, 'wb') as targetfile:
         targetfile.write(content)

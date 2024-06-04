@@ -1,7 +1,7 @@
 from collections import deque, defaultdict
+from typing import List
 
-pos = int
-def search_in_data(data: bytes, patterns: list[bytes]) -> dict[bytes, pos]:
+def search_in_data(data: bytes, patterns: list[bytes]) -> dict[bytes, List[int]]:
     ac = AhoCorasick()
     for pattern in patterns:
         ac.add_word(pattern)
@@ -39,11 +39,11 @@ class AhoCorasick:
 
     def search(self, data: bytes):
         node = 0
-        positions = dict()
+        positions = defaultdict(list)
         for index, byte in enumerate(data):
             while node != 0 and byte not in self.adj[node]:
                 node = self.fail[node]
             node = self.adj[node].get(byte, 0)
             for pattern in self.output[node]:
-                positions[pattern] = index - len(pattern) + 1
+                positions[pattern].append(index - len(pattern) + 1)
         return positions
