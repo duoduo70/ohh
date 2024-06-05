@@ -31,7 +31,6 @@ class ReplaceRule:
     to: str
     def __init__(self, arg1: str, to: Optional[str] = None):
         if type(arg1) == tuple:
-            print(arg1)
             self.from_ = arg1[0]
             self.to = arg1[1]
             return
@@ -58,7 +57,7 @@ class Directory:
     skippedfiles: List[str]
     def skip(self, path: str):
         '''
-        Example: for_dir("a/b/c").skip("a.json")
+        Example: for_dir("a/b/c").skip("a.json").auto_extract_source()
         则跳过 a/b/c/a.json
         '''
         self.includingfiles = [e for e in self.includingfiles
@@ -75,15 +74,15 @@ class Directory:
     def auto_extract_source(self, search_type = AutoExtractSearchType.NORMAL) -> dict[filename, List[tuple[str, possibility]]]:
         source = dict()
         for filepath in self.includingfiles:
-            if os.path.splitext(filepath)[1] in modules.auto_extract_source:
-                source[filepath] = modules.auto_extract_source[os.path.splitext(filepath)[1]](filepath, search_type)
+            if os.path.splitext(filepath)[1] in modules.AUTO_EXTRACT_SOURCE:
+                source[filepath] = modules.AUTO_EXTRACT_SOURCE[os.path.splitext(filepath)[1]](filepath, search_type)
         return source
     def search(self, *patterns: List[str | SearchPattern] | str | SearchPattern):
         patterns = _preprocessing_patterns(str, SearchPattern, patterns)
         ret = []
         for filepath in self.includingfiles:
-            if os.path.splitext(filepath)[1] in modules.search:
-                result = modules.search[os.path.splitext(filepath)[1]](filepath, patterns)
+            if os.path.splitext(filepath)[1] in modules.SEARCH:
+                result = modules.SEARCH[os.path.splitext(filepath)[1]](filepath, patterns)
                 if result == []:
                     pass
                 else:
@@ -92,10 +91,10 @@ class Directory:
                 pass
         return ret
     def replace(self, *patterns: List[tuple[str, str] | ReplaceRule] | tuple[str, str] | ReplaceRule):
-        _preprocessing_patterns(tuple, ReplaceRule, patterns)
+        patterns = _preprocessing_patterns(tuple, ReplaceRule, patterns)
         for filepath in self.includingfiles:
-            if os.path.splitext(filepath)[1] in modules.replace:
-                modules.replace[os.path.splitext(filepath)[1]](filepath, patterns)
+            if os.path.splitext(filepath)[1] in modules.REPLACE:
+                modules.REPLACE[os.path.splitext(filepath)[1]](filepath, patterns)
             else:
                 pass
         return self
@@ -122,6 +121,16 @@ class Directory:
         return self
     def get_fileobjs(self) -> List: # ret: List[File]
         return [for_file(file) for file in self.includingfiles]
+    def segment_dump(self, min_possibility=2):
+        result = self.auto_extract_source(AutoExtractSearchType.SEGMENT)
+        print("[")
+        for filename, data in result.items():
+            for str_, p in data:
+                if p >= min_possibility:
+                    print("    ", end="")
+                    print((str_, filename), end="")
+                    print(",")
+        print("]")
 
 def for_dir(dirpath: str) -> Directory:
     import os
@@ -151,9 +160,9 @@ class File:
     from_ = str
     to = str
     def replace(self, *patterns: List[tuple[str, str] | ReplaceRule] | tuple[str, str] | ReplaceRule):
-        _preprocessing_patterns(tuple, ReplaceRule, patterns)
-        if os.path.splitext(self.filepath)[1] in modules.replace:
-            modules.replace[os.path.splitext(self.filepath)[1]](self.filepath, patterns)
+        patterns = _preprocessing_patterns(tuple, ReplaceRule, patterns)
+        if os.path.splitext(self.filepath)[1] in modules.REPLACE:
+            modules.REPLACE[os.path.splitext(self.filepath)[1]](self.filepath, patterns)
         else:
             raise Exception("The file do not have replace support")
         return self
@@ -164,8 +173,8 @@ class File:
         shutil.copy(self.filepath, to_path)
     possibility = int
     def auto_extract_source(self, search_type = AutoExtractSearchType.NORMAL) -> List[tuple[str, possibility]]:
-        if os.path.splitext(self.filepath)[1] in modules.auto_extract_source:
-            return modules.auto_extract_source[os.path.splitext(self.filepath)[1]](self.filepath, search_type)
+        if os.path.splitext(self.filepath)[1] in modules.AUTO_EXTRACT_SOURCE:
+            return modules.AUTO_EXTRACT_SOURCE[os.path.splitext(self.filepath)[1]](self.filepath, search_type)
         else:
             return []
     def replace_with(self, filepath: str):
@@ -183,8 +192,8 @@ class File:
     def search(self, *patterns: List[str | SearchPattern] | str | SearchPattern):
         patterns = _preprocessing_patterns(str, SearchPattern, patterns)
         ret = []
-        if os.path.splitext(self.filepath)[1] in modules.search:
-            result = modules.search[os.path.splitext(self.filepath)[1]](self.filepath, patterns)
+        if os.path.splitext(self.filepath)[1] in modules.SEARCH:
+            result = modules.SEARCH[os.path.splitext(self.filepath)[1]](self.filepath, patterns)
             if result == []:
                 return []
             else:
@@ -220,20 +229,21 @@ def _preprocessing_patterns(SimplyType, AdvancedType, *patterns):
         4. replace(("1", "2"))
         5. replace("1", "2")
         6. replace(ReplaceRule("1", "2"))
-        若想要 3. 和 6. 等价，则应该为 ReplaceRule 同时定义这两种形式的构造
-        除此之外，1.~ 5.的相互等价都是本函数提供的，只需为 ReplaceRule 手动定义参数形如 ReplaceRule(("1", "2")) 的构造
+        你必须为 ReplaceRule 手动定义形如 ReplaceRule(("1", "2")) 和 ReplaceRule("1", "2") 的构造
+
+        该函数返回 List[AdvancedType] ，例如在示例中，返回 List[ReplaceRule]
     '''
     if len(patterns) != 1 and type(patterns) != SimplyType:
         return [(patterns)]
     elif type(patterns[0]) == SimplyType:
-        return [AdvancedType(patterns[0])]
+        return [AdvancedType(patterns[0][0])]
     elif type(patterns[0]) == AdvancedType:
         return [patterns[0]]
     else:
         ret_list = []
-        for pattern in patterns[0]:
-            if type(pattern) == SimplyType:
-                ret_list.append(AdvancedType(pattern))
+        for p in patterns[0]:
+            if type(p) == SimplyType:
+                ret_list.append(AdvancedType(p))
             else:
-                ret_list.append(pattern)
+                ret_list.append(p)
         return ret_list
