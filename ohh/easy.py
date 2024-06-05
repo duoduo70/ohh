@@ -125,7 +125,7 @@ class Directory:
         result = self.auto_extract_source(AutoExtractSearchType.SEGMENT)
         print("[")
         for filename, data in result.items():
-            for str_, p in data:
+            for str_, p in data.items():
                 if p >= min_possibility:
                     print("    ", end="")
                     print((str_, filename), end="")

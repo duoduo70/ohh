@@ -3,7 +3,7 @@ from typing import List
 from ohh.easy import AutoExtractSearchType
 
 possibility = int
-def auto_extract_source(filename: str, search_type = AutoExtractSearchType.NORMAL) -> List[tuple[str, possibility]]:
+def auto_extract_source(filename: str, search_type = AutoExtractSearchType.NORMAL) -> List[dict[str, possibility]]:
     NORMAL = 0
     CAPITALIZE_FIRST_LETTER = 1
     possibility_list = dict()
@@ -19,15 +19,15 @@ def auto_extract_source(filename: str, search_type = AutoExtractSearchType.NORMA
     if search_type == AutoExtractSearchType.SEGMENT:
         PUNCTUATION = 2
         LIKE_PATH = -1
-        for str_, _ in possibility_list:
+        for str_ in possibility_list.keys():
             if len(str_) > 20:
                 possibility_list[str_] += len(str_) // 20
             for ch in str_:
                 if ch == ',' or ch == '.':
-                    possibility[str_] += PUNCTUATION
+                    possibility_list[str_] += PUNCTUATION
                     break
                 if ch == '/':
-                    possibility[str_] += LIKE_PATH
+                    possibility_list[str_] += LIKE_PATH
     return possibility_list
 
 def find_str_value(json_: json) -> List[str]:

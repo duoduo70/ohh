@@ -113,6 +113,15 @@ RELEASE_VERSION(release_version)
 ```
 当你用 `python test.py` 运行程序，你会看到输出 `It is release version`，当你用 `python test.py debug` 运行程序，你会看到输出 `It is debug version`。
 
+## 示例：
+在任意 Minecraft 模组中扫描可汉化（包括硬编码的）内容：
+```python
+from ohh import *
+
+clear_cache()
+
+for_file("your_mod.jar").unzip().as_dir().segment_dump()
+```
 
 Plasma
 2024 年 6 月 5 日

@@ -195,7 +195,7 @@ def parse(filepath: str):
             continue
         if bytes_[i] == 15:
             content = MethodHandle()
-            content.refrence_kind = int.from_bytes(bytes_[i + 1])
+            content.refrence_kind = bytes_[i + 1]
             content.refrence_index = int.from_bytes(bytes_[i + 2 : i + 4])
             classfile.constant_pool.append(content)
             i += 4
@@ -238,6 +238,7 @@ def parse(filepath: str):
             i += 3
             constant_pool_count -= 1
             continue
+        break # 有些编译器自己的问题，常量池声明的比用的多，主流 JRE 也都能解析这种严格意义上来说损坏了的字节码
     classfile.access_flags = bytes_[i:i+2]
     classfile.this_class = int.from_bytes(bytes_[i+2:i+4])
     classfile.super_class = int.from_bytes(bytes_[i+4:i+6])
@@ -361,9 +362,9 @@ class ClassFile:
             file.write(bytes_)
 
 possibility = int
-def auto_extract_source(filename: str, search_type = AutoExtractSearchType.NORMAL) -> List[tuple[str, possibility]]:
+def auto_extract_source(filename: str, search_type = AutoExtractSearchType.NORMAL) -> List[dict[str, possibility]]:
     parsed_byte_code = parse(filename)
-    return [(e, 1) for e in get_literal_strings(parsed_byte_code.constant_pool).keys()]
+    return {e: 1 for e in get_literal_strings(parsed_byte_code.constant_pool).keys()}
 
 def search(file_path: str, patterns: List[SearchPattern]) -> List[SearchResult]:
     parsed_byte_code = parse(file_path)

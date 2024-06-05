@@ -4,10 +4,10 @@ from ohh.modules.replace import replace_in_file
 from ohh.modules.search import search_in_data
 
 possibility = int
-def auto_extract_source(filename: str, search_type = AutoExtractSearchType.NORMAL) -> List[tuple[str, possibility]]:
+def auto_extract_source(filename: str, search_type = AutoExtractSearchType.NORMAL) -> List[dict[str, possibility]]:
     with open(filename) as file:
         lines = file.readlines()
-    ret = []
+    ret = dict()
     for line in lines:
         str_flag = False
         str_start_pos = None
@@ -54,7 +54,7 @@ def auto_extract_source(filename: str, search_type = AutoExtractSearchType.NORMA
                         lower_flag = False
                 if len(str_) <= 2:
                     possibility = 1 # too short
-                ret.append((str_, possibility))
+                ret[str_] = possibility
     return ret
 
 def search(file_path: str, patterns: List[SearchPattern]) -> List[SearchResult]:
